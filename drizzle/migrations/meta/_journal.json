@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789475842104,
+      "tag": "0000_import_channel_genie_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789504963329,
+      "tag": "0001_add_video_style",
+      "breakpoints": true
+    }
+  ]
+}
