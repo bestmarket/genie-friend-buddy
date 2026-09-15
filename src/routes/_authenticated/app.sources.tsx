@@ -170,27 +170,27 @@ function SourcesPage() {
         ) : (
           <ul className="space-y-2">
             {sources.map((source) => (
-              <li
-                key={source.id}
-                className="flex items-start justify-between gap-3 rounded-lg border border-border p-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    {source.kind}
-                    {source.label ? ` · ${source.label}` : ""}
-                  </p>
-                  <p className="mt-1 line-clamp-3 whitespace-pre-wrap break-words text-sm text-foreground">
-                    {source.content}
-                  </p>
+              <li key={source.id} className="rounded-lg border border-border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      {source.kind}
+                      {source.label ? ` · ${source.label}` : ""}
+                    </p>
+                    <p className="mt-1 line-clamp-3 whitespace-pre-wrap break-words text-sm text-foreground">
+                      {source.content}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Remove source"
+                    onClick={() => remove.mutate({ data: { id: source.id } })}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Remove source"
-                  onClick={() => remove.mutate({ data: { id: source.id } })}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {source.kind === "link" ? <SourceVideoAnalysis sourceId={source.id} /> : null}
               </li>
             ))}
           </ul>

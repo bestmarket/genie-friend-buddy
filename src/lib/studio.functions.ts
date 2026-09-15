@@ -188,7 +188,21 @@ async function loadSourceText(
   const res = await supabase.from("sources").select("kind,label,content").eq("project_id", projectId);
   const rows = (res.data ?? []) as Array<{ kind: string; label: string | null; content: string }>;
   if (rows.length === 0) throw new Error("Add at least one source first.");
-  return rows.map((r) => `[${r.kind}] ${r.label ?? ""}\n${r.content}`).join("\n\n---\n\n");
+  const parts = rows.map((r) => `[${r.kind}] ${r.label ?? ""}\n${r.content}`);
+
+  // Fold in per-video analyses so the profile is built from real videos, not just links.
+  const analysed = await supabase
+    .from("source_videos")
+    .select("title,analysis")
+    .eq("project_id", projectId)
+    .eq("status", "done");
+  const videos = (analysed.data ?? []) as Array<{ title: string | null; analysis: unknown }>;
+  for (const v of videos) {
+    if (!v.analysis) continue;
+    parts.push(`[analysed video] ${v.title ?? ""}\n${JSON.stringify(v.analysis)}`);
+  }
+
+  return parts.join("\n\n---\n\n");
 }
 
 /** Reads every source and builds the reusable channel profile. */
