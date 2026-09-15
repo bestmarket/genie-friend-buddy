@@ -74,6 +74,7 @@ function parseFeed(xml: string, limit: number): DiscoveredVideo[] {
 }
 
 type PlayerResponse = {
+  playabilityStatus?: { status?: string; reason?: string };
   videoDetails?: { title?: string; shortDescription?: string; publishDate?: string };
   captions?: {
     playerCaptionsTracklistRenderer?: {
@@ -82,17 +83,53 @@ type PlayerResponse = {
   };
 };
 
-async function player(videoId: string): Promise<PlayerResponse> {
+const CLIENTS = [
+  { clientName: "ANDROID", clientVersion: "20.10.38" },
+  { clientName: "IOS", clientVersion: "20.10.4" },
+  { clientName: "MWEB", clientVersion: "2.20240726.01.00" },
+  { clientName: "WEB", clientVersion: "2.20240726.00.00" },
+] as const;
+
+async function playerFor(videoId: string, client: (typeof CLIENTS)[number]) {
   const res = await fetch("https://www.youtube.com/youtubei/v1/player", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "User-Agent": UA },
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": UA,
+      "Accept-Language": "en-US,en;q=0.9",
+      Origin: "https://www.youtube.com",
+    },
     body: JSON.stringify({
-      context: { client: { clientName: "ANDROID", clientVersion: "20.10.38", hl: "en" } },
+      context: { client: { ...client, hl: "en", gl: "US" } },
       videoId,
+      contentCheckOk: true,
+      racyCheckOk: true,
     }),
   });
   if (!res.ok) throw new Error(`YouTube returned ${res.status} for that video.`);
   return (await res.json()) as PlayerResponse;
+}
+
+/** Tries each public client until one returns captions or details. */
+async function player(videoId: string): Promise<PlayerResponse> {
+  let last: PlayerResponse | null = null;
+  let reason = "";
+  for (const client of CLIENTS) {
+    try {
+      const data = await playerFor(videoId, client);
+      const status = data.playabilityStatus?.status;
+      if (status && status !== "OK") {
+        reason = data.playabilityStatus?.reason ?? status;
+        continue;
+      }
+      last = data;
+      if (data.captions?.playerCaptionsTracklistRenderer?.captionTracks?.length) return data;
+    } catch {
+      /* try the next client */
+    }
+  }
+  if (last) return last;
+  throw new Error(reason ? `YouTube blocked this video: ${reason}` : "YouTube did not return this video.");
 }
 
 /** Looks up a single video's public details. */
