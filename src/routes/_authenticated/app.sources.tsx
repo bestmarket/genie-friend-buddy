@@ -5,6 +5,7 @@ import { Link2, Loader2, StickyNote, Trash2, Type, Wand2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { SourceVideoAnalysis } from "@/components/SourceVideoAnalysis";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
