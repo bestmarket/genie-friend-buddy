@@ -67,7 +67,26 @@ export const discoverSourceVideos = createServerFn({ method: "POST" })
     if (source.error) throw new Error(source.error.message);
     if (source.data.kind !== "link") throw new Error("Only link sources can be analysed.");
 
-    const videos = await discoverVideos(source.data.content.trim(), data.limit);
+    // One source can hold several pasted links (one per line or space separated).
+    const links = source.data.content
+      .split(/[\s,]+/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    const found = new Map<string, Awaited<ReturnType<typeof discoverVideos>>[number]>();
+    const problems: string[] = [];
+    for (const link of links) {
+      try {
+        const perLink = await discoverVideos(link, data.limit);
+        for (const v of perLink) if (!found.has(v.videoId)) found.set(v.videoId, v);
+      } catch (error) {
+        problems.push(error instanceof Error ? error.message : "link failed");
+      }
+    }
+    if (found.size === 0) {
+      throw new Error(problems[0] ?? "No videos were found for that link.");
+    }
+    const videos = [...found.values()];
 
     const rows = videos.map((v, index) => ({
       source_id: data.sourceId,
