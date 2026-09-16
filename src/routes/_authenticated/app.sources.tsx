@@ -5,7 +5,7 @@ import { Link2, Loader2, StickyNote, Trash2, Type, Wand2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { SourceVideoAnalysis } from "@/components/SourceVideoAnalysis";
+import { ProjectVideoAnalysis } from "@/components/ProjectVideoAnalysis";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -98,6 +98,10 @@ function SourcesPage() {
 
   return (
     <div className="space-y-6">
+      {projectId && sources.some((s) => s.kind === "link") ? (
+        <ProjectVideoAnalysis projectId={projectId} />
+      ) : null}
+
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-foreground">Channel material</h2>
@@ -191,7 +195,6 @@ function SourcesPage() {
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
-                {source.kind === "link" ? <SourceVideoAnalysis sourceId={source.id} /> : null}
               </li>
             ))}
           </ul>

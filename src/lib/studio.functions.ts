@@ -644,7 +644,11 @@ export const studioChat = createServerFn({ method: "POST" })
     const { supabase } = context;
 
     const [project, ideas, scripts] = await Promise.all([
-      supabase.from("projects").select("name,channel_profile").eq("id", data.projectId).single(),
+      supabase
+        .from("projects")
+        .select("name,channel_profile,brainstorm")
+        .eq("id", data.projectId)
+        .single(),
       supabase.from("ideas").select("title,hook").eq("project_id", data.projectId).limit(20),
       supabase.from("scripts").select("title").eq("project_id", data.projectId).limit(20),
     ]);
@@ -658,7 +662,11 @@ export const studioChat = createServerFn({ method: "POST" })
         project.data?.channel_profile ?? "not analysed yet",
       )}. Existing ideas: ${(ideas.data ?? []).map((i) => i.title).join("; ") || "none"}. Existing scripts: ${
         (scripts.data ?? []).map((s) => s.title).join("; ") || "none"
-      }.`,
+      }.${
+        project.data?.brainstorm
+          ? `\n\nBrainstorm from the analysed reference videos:\n${project.data.brainstorm}`
+          : ""
+      }`,
       `${transcript ? `${transcript}\n` : ""}User: ${data.message}`,
     );
 
