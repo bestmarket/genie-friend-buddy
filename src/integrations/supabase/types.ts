@@ -197,6 +197,8 @@ export type Database = {
       }
       projects: {
         Row: {
+          brainstorm: string | null
+          brainstorm_at: string | null
           channel_profile: Json | null
           created_at: string
           id: string
@@ -205,6 +207,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          brainstorm?: string | null
+          brainstorm_at?: string | null
           channel_profile?: Json | null
           created_at?: string
           id?: string
@@ -213,6 +217,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          brainstorm?: string | null
+          brainstorm_at?: string | null
           channel_profile?: Json | null
           created_at?: string
           id?: string

@@ -67,7 +67,26 @@ export const discoverSourceVideos = createServerFn({ method: "POST" })
     if (source.error) throw new Error(source.error.message);
     if (source.data.kind !== "link") throw new Error("Only link sources can be analysed.");
 
-    const videos = await discoverVideos(source.data.content.trim(), data.limit);
+    // One source can hold several pasted links (one per line or space separated).
+    const links = source.data.content
+      .split(/[\s,]+/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    const found = new Map<string, Awaited<ReturnType<typeof discoverVideos>>[number]>();
+    const problems: string[] = [];
+    for (const link of links) {
+      try {
+        const perLink = await discoverVideos(link, data.limit);
+        for (const v of perLink) if (!found.has(v.videoId)) found.set(v.videoId, v);
+      } catch (error) {
+        problems.push(error instanceof Error ? error.message : "link failed");
+      }
+    }
+    if (found.size === 0) {
+      throw new Error(problems[0] ?? "No videos were found for that link.");
+    }
+    const videos = [...found.values()];
 
     const rows = videos.map((v, index) => ({
       source_id: data.sourceId,
@@ -168,4 +187,82 @@ export const clearSourceVideos = createServerFn({ method: "POST" })
       .eq("source_id", data.sourceId);
     if (res.error) throw new Error(res.error.message);
     return { ok: true };
+  });
+
+/* ------------------------------------------------------------------ *
+ * Whole-project analysis
+ * ------------------------------------------------------------------ */
+
+export type LinkSource = { id: string; label: string | null; content: string };
+
+/** Every saved link source in the project, in the order they were added. */
+export const listLinkSources = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ projectId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const res = await context.supabase
+      .from("sources")
+      .select("id,label,content")
+      .eq("project_id", data.projectId)
+      .eq("kind", "link")
+      .order("created_at", { ascending: true });
+    if (res.error) throw new Error(res.error.message);
+    return (res.data ?? []) as LinkSource[];
+  });
+
+/** Every discovered video across all of the project's links. */
+export const listProjectVideos = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ projectId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const res = await context.supabase
+      .from("source_videos")
+      .select(SELECT)
+      .eq("project_id", data.projectId)
+      .order("created_at", { ascending: true })
+      .order("position", { ascending: true });
+    if (res.error) throw new Error(res.error.message);
+    return (res.data ?? []) as unknown as SourceVideo[];
+  });
+
+/**
+ * Turns every analysed video into one brainstorm the user can read in chat:
+ * what these videos have in common and how to beat them.
+ */
+export const buildBrainstorm = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ projectId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { askAI } = await import("./ai.server");
+    const { supabase } = context;
+
+    const rows = await supabase
+      .from("source_videos")
+      .select("title,url,analysis")
+      .eq("project_id", data.projectId)
+      .eq("status", "done")
+      .limit(60);
+    if (rows.error) throw new Error(rows.error.message);
+
+    const analysed = (rows.data ?? []).filter((r) => r.analysis);
+    if (analysed.length === 0) throw new Error("Analyse some videos first.");
+
+    const digest = analysed
+      .map((r, i) => `${i + 1}. ${r.title ?? r.url}\n${JSON.stringify(r.analysis)}`)
+      .join("\n\n");
+
+    const brainstorm = await askAI(
+      "You are a viral content strategist. You read analyses of reference videos and turn them into a practical brainstorm the creator can act on today. Write clean markdown, no preamble.",
+      `Here are ${analysed.length} analysed reference videos:\n\n${digest}\n\nWrite the brainstorm with these sections:\n## What these videos have in common\n## Hook patterns that work\n## Winning structure\n## Topics with room to win\n## 8 video ideas for me (title + one-line hook each)\n## How to make mine better\nKeep every bullet short and specific.`,
+    );
+
+    const saved = await supabase
+      .from("projects")
+      .update({ brainstorm, brainstorm_at: new Date().toISOString() })
+      .eq("id", data.projectId)
+      .select("brainstorm,brainstorm_at")
+      .single();
+    if (saved.error) throw new Error(saved.error.message);
+
+    return { brainstorm, videoCount: analysed.length };
   });
